@@ -15,12 +15,13 @@ source of truth for content.
 ## Requirements
 
 - Docker Desktop for local development
-- A docker context (`blt-pub02`) over SSH for remote operations
+- A docker context over SSH for remote operations, named by `SERVER` in `.env`
 - A project `.env` file
-- SSH access to `blt-pub02` (key `SSH blt-pub02` in 1Password)
+- SSH access to that host (its key is in 1Password)
 
-`SLD` means second-level domain. For this project, it resolves to
-`blackletter`.
+`SLD` and `TLD` name the site (`SLD.TLD`); `IMAGE`, `SERVER`, `BUILDER`
+and `COMPOSE_PROJECT_NAME` are the other instance parameters. All of them
+live in `.env`; no script or compose file carries a site-specific value.
 
 ## Start a work session
 
@@ -42,7 +43,7 @@ set -o allexport
 source .env
 set +o allexport
 unset DOCKER_CONTEXT
-docker build -t "wagnerpaul/${SLD}-main-app:local" .
+docker build -t "${IMAGE}:local" .
 ```
 
 Run the site at `http://localhost:8080`:
@@ -53,7 +54,7 @@ docker run --rm -d \
   --volume "$(pwd):/app" \
   --publish 8080:80 \
   --env ENABLE_PANEL=true \
-  "wagnerpaul/${SLD}-main-app:local"
+  "${IMAGE}:local"
 ```
 
 Stop the local container:
@@ -103,7 +104,7 @@ with an internal HTTP request. Kirby page caching stores absolute media URLs,
 which causes browsers to block images as mixed content.
 
 The staging host config also fixes Kirby's canonical URL to
-`https://stg.blackletter.tech`. This prevents direct internal HTTP requests
+`https://stg.${SLD}.${TLD}`. This prevents direct internal HTTP requests
 from generating mixed-content URLs before the cache is populated.
 
 ## Custom CSS
@@ -132,21 +133,21 @@ Never publish an untested application image directly to production.
 
 ## Building images for the remote host
 
-The host (blt-pub02, Debian 13, current Docker) runs amd64. Build
+The host (`SERVER`, Debian 13, current Docker) runs amd64. Build
 locally for that platform and ship the result; the 2GB host serves
 three sites and should not also compile extensions:
 
 ```sh
 unset DOCKER_DEFAULT_PLATFORM
 docker buildx build --platform linux/amd64 \
-  -t "wagnerpaul/${SLD}-main-app:stg" --load .
-docker save "wagnerpaul/${SLD}-main-app:stg" | ssh blt-pub02 docker load
+  -t "${IMAGE}:stg" --load .
+docker save "${IMAGE}:stg" | ssh "$SERVER" docker load
 ```
 
 Then recreate the staging container:
 
 ```sh
-export DOCKER_CONTEXT=blt-pub02
+export DOCKER_CONTEXT="$SERVER"
 docker compose up -d --force-recreate stg
 ```
 
@@ -167,7 +168,7 @@ Load the project environment and select the remote Docker host:
 set -o allexport
 source .env
 set +o allexport
-export DOCKER_CONTEXT=blt-pub02
+export DOCKER_CONTEXT="$SERVER"
 ```
 
 Open a staging shell:
@@ -252,17 +253,18 @@ The context rides plain SSH. If remote Docker commands fail, test the
 transport first:
 
 ```sh
-ssh blt-pub02 docker version
+ssh "$SERVER" docker version
 ```
 
 SSH signing goes through the 1Password agent; an unlocked 1Password and
-an approved `SSH blt-pub02` key are prerequisites. The old
+an approved SSH key for the host are prerequisites. The old
 docker-machine host (docker-ubuntu-4gb-sfo2-01) is retired; its
 certificate tooling no longer applies.
 
 ### Shared proxy network
 
-Staging and production use the existing `proxy-network`. Compose files declare
+Staging and production use the existing proxy network named by `PROXY_NETWORK`
+in `.env`. Compose files declare
 that network as external so Compose does not recreate or own it.
 
 ### Image cleanup

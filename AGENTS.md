@@ -17,7 +17,7 @@ local content copy as authoritative.
 
 ## Working rules
 
-- `blackletter.tech` is the trunk. Merge a branch into it as soon as the
+- The branch named after the site (`SLD.TLD`) is the trunk. Merge a branch into it as soon as the
   branch's work is done. The trunk must always contain the latest finished
   work; only in-progress branches may sit ahead of it.
 - Preserve unrelated changes in the working tree.
